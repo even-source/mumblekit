@@ -37,6 +37,7 @@ NSString *MKAudioDidRestartNotification = @"MKAudioDidRestartNotification";
     MKConnection             *_connection;
     MKAudioSettings          _audioSettings;
     BOOL                     _running;
+    BOOL                     _usesExternalAudioSession;
 }
 - (BOOL) _audioShouldBeRunning;
 @end
@@ -44,6 +45,15 @@ NSString *MKAudioDidRestartNotification = @"MKAudioDidRestartNotification";
 #if TARGET_OS_IPHONE == 1
 static void MKAudio_InterruptCallback(void *udata, UInt32 interrupt) {
     MKAudio *audio = (MKAudio *) udata;
+
+    if ([audio usesExternalAudioSession]) {
+        if (interrupt == kAudioSessionBeginInterruption) {
+            [audio stop];
+        } else if (interrupt == kAudioSessionEndInterruption && [audio _audioShouldBeRunning]) {
+            [audio start];
+        }
+        return;
+    }
 
     if (interrupt == kAudioSessionBeginInterruption) {
         [audio stop];
@@ -64,6 +74,15 @@ static void MKAudio_AudioInputAvailableCallback(MKAudio *audio, AudioSessionProp
     BOOL audioInputAvailable;
     UInt32 val;
     OSStatus err;
+
+    if ([audio usesExternalAudioSession]) {
+        if ([audio _audioShouldBeRunning]) {
+            [audio restart];
+        } else {
+            [audio stop];
+        }
+        return;
+    }
 
     if (avail) {
         audioInputAvailable = *avail;
@@ -113,6 +132,17 @@ static void MKAudio_AudioRouteChangedCallback(MKAudio *audio, AudioSessionProper
 #endif
             NSLog(@"MKAudio: audio route changed, skipping; reason=%i", reason);
             return;
+    }
+
+    if ([audio usesExternalAudioSession]) {
+        if ([audio _audioShouldBeRunning]) {
+            NSLog(@"MKAudio: external audio-session route changed, restarting audio graph only; reason=%i", reason);
+            [audio restart];
+        } else {
+            NSLog(@"MKAudio: external audio-session route changed, stopping audio graph; reason=%i", reason);
+            [audio stop];
+        }
+        return;
     }
 
     UInt32 val = TRUE;
@@ -233,6 +263,9 @@ static void MKAudio_UpdateAudioSessionSettings(MKAudio *audio) {
     UInt32 val, valSize;
     BOOL audioInputAvailable = YES;
     
+    if ([audio usesExternalAudioSession]) {
+        return;
+    }
 
     // To be able to select the correct category, we must query whethe audio input is available.
     valSize = sizeof(UInt32);
@@ -298,6 +331,18 @@ static void MKAudio_UpdateAudioSessionSettings(MKAudio *audio) {
     return delegate;
 }
 
+- (void) setUsesExternalAudioSession:(BOOL)usesExternalAudioSession {
+    @synchronized(self) {
+        _usesExternalAudioSession = usesExternalAudioSession;
+    }
+}
+
+- (BOOL) usesExternalAudioSession {
+    @synchronized(self) {
+        return _usesExternalAudioSession;
+    }
+}
+
 // Read the current audio engine settings
 - (void) readAudioSettings:(MKAudioSettings *)settings {
     if (settings == NULL)
@@ -344,6 +389,14 @@ static void MKAudio_UpdateAudioSessionSettings(MKAudio *audio) {
 // Stop the audio engine
 - (void) stop {
     @synchronized(self) {
+        if (! _running && _audioDevice == nil && _audioInput == nil && _audioOutput == nil) {
+#if TARGET_OS_IPHONE == 1
+            if (! [self usesExternalAudioSession]) {
+                AudioSessionSetActive(NO);
+            }
+#endif
+            return;
+        }
         [_audioInput release];
         _audioInput = nil;
         [_audioOutput release];
@@ -356,16 +409,23 @@ static void MKAudio_UpdateAudioSessionSettings(MKAudio *audio) {
         _running = NO;
     }
 #if TARGET_OS_IPHONE == 1
-    AudioSessionSetActive(NO);
+    if (! [self usesExternalAudioSession]) {
+        AudioSessionSetActive(NO);
+    }
 #endif
 }
 
 // Start the audio engine
 - (void) start {
 #if TARGET_OS_IPHONE == 1
-    AudioSessionSetActive(YES);
+    if (! [self usesExternalAudioSession]) {
+        AudioSessionSetActive(YES);
+    }
 #endif
     @synchronized(self) {
+        if (_running) {
+            return;
+        }
 #if TARGET_OS_IPHONE == 1
         if ([[MKAudio sharedAudio] echoCancellationAvailable] && _audioSettings.enableEchoCancellation) {
             _audioDevice = [[MKVoiceProcessingDevice alloc] initWithSettings:&_audioSettings];

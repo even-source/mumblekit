@@ -161,6 +161,14 @@ typedef struct _MKAudioSettings {
 /// Restarts MumbleKit's audio subsystem.
 - (void) restart;
 
+/// When enabled, MumbleKit still owns the Mumble audio graph (encoder,
+/// decoder, AudioUnit I/O), but it must not activate/deactivate or mutate the
+/// process AVAudioSession. This is used by iOS PushToTalk where Apple owns the
+/// audio-session lifecycle and calls the app back via PTChannelManagerDelegate
+/// didActivate/didDeactivate.
+- (void) setUsesExternalAudioSession:(BOOL)usesExternalAudioSession;
+- (BOOL) usesExternalAudioSession;
+
 ///---------------
 /// @name Settings
 ///---------------
@@ -191,6 +199,9 @@ typedef struct _MKAudioSettings {
 ///
 /// @param enableForceTransmit  Whether or not to enable force-transmit.
 - (void) setForceTransmit:(BOOL)enableForceTransmit;
+- (void) setSelfMuted:(BOOL)selfMuted;
+- (void) setMuted:(BOOL)muted;
+- (void) setSuppressed:(BOOL)suppressed;
 
 /// Returns whether or not the system's current audio route is
 /// suitable for echo cancellation.

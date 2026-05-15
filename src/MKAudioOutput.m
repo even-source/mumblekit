@@ -12,6 +12,7 @@
 #import <AudioUnit/AudioUnit.h>
 #import <AudioUnit/AUComponent.h>
 #import <AudioToolbox/AudioToolbox.h>
+#import <math.h>
 
 @interface MKAudioOutput () {
     MKAudioDevice        *_device;
@@ -33,6 +34,10 @@
     long                  _cngRegister1;
     long                  _cngRegister2;
     BOOL                  _cngEnabled;
+    NSUInteger            _debugAddedFrames;
+    NSUInteger            _debugMixCallbacks;
+    NSUInteger            _debugLastSources;
+    float                 _debugLastPcmPeak;
 }
 @end
 
@@ -211,6 +216,19 @@
     } else {
         memset((short *)frames, 0, nsamp * _numChannels * sizeof(short));
     }
+
+    float debugPeak = 0.0f;
+    short *debugOutputBuffer = (short *)frames;
+    for (i = 0; i < nsamp * _numChannels; ++i) {
+        float sample = fabsf((float)debugOutputBuffer[i] / 32768.0f);
+        if (sample > debugPeak) {
+            debugPeak = sample;
+        }
+    }
+    _debugMixCallbacks += 1;
+    _debugLastSources = [mix count];
+    _debugLastPcmPeak = debugPeak;
+
     [_outputLock unlock];
 
     for (MKAudioOutputUser *ou in del) {
@@ -258,6 +276,10 @@
 }
 
 - (void) addFrameToBufferWithSession:(NSUInteger)session data:(NSData *)data sequence:(NSUInteger)seq type:(MKUDPMessageType)msgType {
+    [_outputLock lock];
+    _debugAddedFrames += 1;
+    [_outputLock unlock];
+
     if (_numChannels == 0)
         return;
 
@@ -282,11 +304,17 @@
 }
 
 - (NSDictionary *) copyMixerInfo {
-    NSDictionary *mixerInfoCopy = nil;
+    NSMutableDictionary *mixerInfoCopy = nil;
     [_mixerInfoLock lock];
-    mixerInfoCopy = [_mixerInfo copy];
+    mixerInfoCopy = [[_mixerInfo mutableCopy] autorelease];
     [_mixerInfoLock unlock];
-    return mixerInfoCopy;
+    [_outputLock lock];
+    [mixerInfoCopy setObject:[NSNumber numberWithUnsignedInteger:_debugAddedFrames] forKey:@"receivePackets"];
+    [mixerInfoCopy setObject:[NSNumber numberWithUnsignedInteger:_debugMixCallbacks] forKey:@"mixCallbacks"];
+    [mixerInfoCopy setObject:[NSNumber numberWithUnsignedInteger:_debugLastSources] forKey:@"sourcesCount"];
+    [mixerInfoCopy setObject:[NSNumber numberWithFloat:_debugLastPcmPeak] forKey:@"pcmPeak"];
+    [_outputLock unlock];
+    return [mixerInfoCopy copy];
 }
 
 @end
