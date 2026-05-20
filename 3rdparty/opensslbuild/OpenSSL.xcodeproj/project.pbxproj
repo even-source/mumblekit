@@ -3299,7 +3299,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd \"${SRCROOT}/../openssl\"\n\"${SRCROOT}/../openssl/Configure\" dist\n";
+			shellScript = "cd \"${SRCROOT}/../openssl\"\nif [ -f include/openssl/aes.h ] && [ -f include/openssl/evp.h ] && [ -f include/openssl/opensslconf.h ]; then\n  exit 0\nfi\n\"${SRCROOT}/../openssl/Configure\" dist\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
