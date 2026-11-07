@@ -219,6 +219,7 @@ typedef struct _MKAudioSettings {
 /// @param  conn  The MKConnection to set as the main connection
 ///               for audio purposes.
 - (void) setMainConnectionForAudio:(MKConnection *)conn;
+- (void) clearMainConnectionForAudioIfMatching:(MKConnection *)conn;
 - (void) addFrameToBufferWithSession:(NSUInteger)session data:(NSData *)data sequence:(NSUInteger)seq type:(MKUDPMessageType)msgType;
 - (MKAudioOutputSidetone *) sidetoneOutput;
 - (float) speechProbablity;

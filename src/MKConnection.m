@@ -238,7 +238,7 @@ static void MKConnectionUDPCallback(CFSocketRef sock, CFSocketCallBackType type,
         _rejected = NO;
 
         // Remove the connection as the main connection for audio.
-        [[MKAudio sharedAudio] setMainConnectionForAudio:nil];
+        [[MKAudio sharedAudio] clearMainConnectionForAudioIfMatching:self];
 
     } while (_reconnect);
     

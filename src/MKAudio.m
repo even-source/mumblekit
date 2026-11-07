@@ -466,6 +466,12 @@ static void MKAudio_UpdateAudioSessionSettings(MKAudio *audio) {
     }
 }
 
+- (void) clearMainConnectionForAudioIfMatching:(MKConnection *)conn {
+    @synchronized(self) {
+        if (_connection == conn) [self setMainConnectionForAudio:nil];
+    }
+}
+
 - (void) addFrameToBufferWithSession:(NSUInteger)session data:(NSData *)data sequence:(NSUInteger)seq type:(MKUDPMessageType)msgType {
     @synchronized(self) {
         [_audioOutput addFrameToBufferWithSession:session data:data sequence:seq type:msgType];
