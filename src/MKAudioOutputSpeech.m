@@ -413,7 +413,15 @@
                     nextAlive = NO;
                 }
             } else {
-                if (_msgType == UDPVoiceOpusMessage) {
+                if (_hasTerminator) {
+                    // Some senders (mumble-web/mumble-client) end a transmission
+                    // with a frameless Opus packet that carries only the
+                    // terminator bit. Treat it like a terminator on the last
+                    // audio frame instead of concealing loss until the miss
+                    // counter runs out; otherwise talk state can stay active.
+                    nextAlive = NO;
+                    memset(output, 0, _frameSize * sizeof(float));
+                } else if (_msgType == UDPVoiceOpusMessage) {
                     decodedSamples = opus_decode_float(_opusDecoder, NULL, 0, output, (int)_frameSize, 0);
                 } else if (_msgType == UDPVoiceSpeexMessage) {
                     speex_decode(_speexDecoder, NULL, output);
